@@ -112,14 +112,14 @@ receiver = node_name | 'Vector_XXX' ;
 ### Комментарии в коде
 
 ```
-comment = 'CM_' object message_id node_name '"'текст'"';
+comment = 'CM_' object message_id node_name char_string ;
 object = 'BU_'|'BO_'|'SG_' ;
 ```
 
 ### Определение атрибутов
 ```
 'BA_DEF_' object attribute_name value_type Min_Max ;
-value_type = 'INT' | 'STRING' | 'REAL' | 'ENUM' ; (* int, STRING, float или REAL , ENUM *) 
+value_type = 'INT' | 'STRING' | 'REAL' | 'ENUM' ; (* INT, STRING, float или REAL , ENUM *) 
 Min_Max (* диапазон значений *)
 'BA_DEF_DEF_' attribute_name default_value ;
 default_value (* начальное значение атрибута *)
@@ -139,11 +139,11 @@ __GenMsgSendType__ -- Defines the send type of a message\
 ```cpp
 enum GenMsgSendType {//!< Defines the send type of a message
     _none,
-    _Cyclic,
-    _Triggered,
-    _CyclicIfActive,
-    _CyclicAndTriggered,
-    _CyclicIfActiveAndTriggered,
+    _cyclic,
+    _triggered,
+    _cyclicIfActive,
+    _cyclicAndTriggered,
+    _cyclicIfActiveAndTriggered,
 };
 ```
 
@@ -171,6 +171,18 @@ BA_DEF BO_ "GenMsgDelayTime" INT 0 0
 BA_DEF_DEF "GenMsgDelayTime" 0
 ```
 
+__VFrameFormat__ -- формат сообщения CAN
+```
+BA_DEF_ BO_ "VFrameFormat" ENUM  "StandardCAN","ExtendedCAN","J1939PG";
+BA_DEF_DEF_  "VFrameFormat" "";
+```
+
+__ProtocolType__ -- Тип протокола: OBD2, J1939, CANopen ...
+```
+BA_DEF_  "ProtocolType" STRING ;
+BA_DEF_DEF_  "ProtocolType" "";
+```
+
 ### Атрибуты сигналов
 
 __GenSigStartValue__ -- Defines the value as long as no value is set/received for this signal. 
@@ -179,23 +191,23 @@ BA_DEF SG_ "GenSigStartValue" INT 0 0
 BA_DEF_DEF "GenSigStartValue" 0
 ```
 
-Приложение для редактирования и просмотра таблиц
+Рекомендуемое приложение для редактирования и просмотра таблиц
 [Kvaser Database Editor 3](https://www.kvaser.com/download/)
+
 
 ## Генерация кода
 
 Определения сигналов
 `SG_ name`  преобразуются в набор определений и структур, состоящих из битовых полей.
 ```cpp
-#define name##_Type -- тип: 'signed' 'unsigned' 'float' 'double' 'enumerated' 'bool' 'bitstring' 'string' 'OID'
-#define name##_Name -- текстовая константа название параметра
+#define name##_Type -- тип: 'signed' 'unsigned' 'float' 'double' 'Enumerated' 'Boolean' 'BitString' 'String' 'Octets' 'Date' 'Time' 'OID'
 #define name##_Pos  -- позиция поля в битах
 #define name##_Bits -- длина поля в битах bit size
 #define name##_Msk  -- маска выделения сигнала ULL до 64 бит
 #define name##_Factor -- множитель для отображения значения
 #define name##_Offset
-#define name##_Min -- минимальное и максимальное значение
-#define name##_Max
+#define name##_Min -- минимальное значение
+#define name##_Max -- максимальное значение
 ```
 Идентификаторы системных типов данных (совместимые идентификаторами BACnet)
 ```cpp
@@ -204,7 +216,7 @@ enum _SYS_TYPE { //!< базовые типы данных в протоколе
 	_TYPE_BOOLEAN	=0x1,//!< логическое значение
 	_TYPE_UNSIGNED	=0x2,//!< целое без знака
 	_TYPE_SIGNED	=0x3,//!< целое со знаком
-	_TYPE_FLOAT	=0x4,//!< вещественное 32 бита
+	_TYPE_REAL	=0x4,//!< вещественное 32 бита
 	_TYPE_DOUBLE	=0x5,//!< вещественное 64 бита
 	_TYPE_OCTETS	=0x6,//!< байтовая строка
 	_TYPE_STRING	=0x7,//!< текстовая строка UTF-8
