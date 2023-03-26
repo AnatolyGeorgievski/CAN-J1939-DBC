@@ -14,7 +14,7 @@ $ gcc can_dbc.c -o dbc `pkg-config.exe --cflags --libs glib-2.0`
 
 2. Пространство имен
 <pre>
-VERSION "created by canmatrix"
+VERSION "...."
 
 
 NS_ : 
@@ -90,7 +90,7 @@ receiver = node_name | 'Vector_XXX' ;
 
 Правила получения числового формата 
 <pre>
- physiacal_value = raw_value * factor + offset;
+ physical_value = raw_value * factor + offset;
  raw+value = (physiacal_value - offset)/factor;
 </pre>
 
@@ -159,15 +159,10 @@ Definition: BA_DEF_DEF "GenSigStartValue" 0
 #include <ctype.h>
 #include <glib.h>
 
-#define CAN_EFF_FLAG 0x80000000U /* EFF/SFF is set in the MSB */
-#define CAN_RTR_FLAG 0x40000000U /* remote transmission request */
-#define CAN_ERR_FLAG 0x20000000U /* error message frame */
+#include <sys/can.h>
 
-#define CAN_SFF_MASK 0x000007FFU /* standard frame format (SFF) */
-#define CAN_EFF_MASK 0x1FFFFFFFU /* extended frame format (EFF) */
-
-#define CAN_SFF_ID_BITS 11
-#define CAN_EFF_ID_BITS 29
+#define CAN_SFF_ID_Bits 11
+#define CAN_EFF_ID_Bits 29
 
 /* для работы макросов нужно определить ряд констант по каждому сигналу SG_ и по каждому сообщению BO_
 
@@ -219,54 +214,38 @@ VAL_ message_id signal_name
 #define J1939_DA_BROADCAST 0xFF 	// Destination Address -- Broadcast
 
 
-//#include <evm_objects.h>
+#include "iot_objects.h"
 // идентификатор объекта
-#define MASK(name) (((~0UL) >> (32-(name##_Bits)))<<(name##_Pos))
 #define UVAL(name,v) (((v) & (name##_Msk))>>(name##_Pos))
 
-#define EVM_OID_TYPE_Bits	10
-#define EVM_OID_TYPE_Pos	(32-EVM_OID_TYPE_Bits)
-#define EVM_OID_TYPE_Msk	MASK(EVM_OID_TYPE)
-#define EVM_OID_ID_Bits		(32-EVM_OID_TYPE_Bits)
-#define EVM_OID_ID_Pos		0
-#define EVM_OID_ID_Msk		MASK(EVM_OID_ID)
+#define MASK(name) (((~0UL) >> (32-(name##_Bits)))<<(name##_Pos))
 
-#define EVM_OID(type, id) ((id)|((type)<<EVM_OID_TYPE_Pos))
+#define EV_OID_TYPE_Bits	10
+#define EV_OID_TYPE_Pos		(32-EV_OID_TYPE_Bits)
+#define EV_OID_TYPE_Msk		MASK(EV_OID_TYPE)
+#define EV_OID_ID_Bits		(32-EV_OID_TYPE_Bits)
+#define EV_OID_ID_Pos		0
+#define EV_OID_ID_Msk		MASK(EV_OID_ID)
 
-#define EVM_TIME_Bits 32
-#define EVM_TIME_FRAC_Bits		15
-#define EVM_TIME_MINS_Bits		6
-#define EVM_TIME_SEC_Bits		6
-#define EVM_TIME_HOURS_Bits		5
+#define EV_OID(type, id) 	((id & EV_OID_ID_Msk)|((type)<<EV_OID_TYPE_Pos))
 
-#define EVM_TIME_FRAC_Pos		0
-#define EVM_TIME_SEC_Pos		(EVM_TIME_FRAC_Pos+EVM_TIME_FRAC_Bits)
-#define EVM_TIME_MINS_Pos		(EVM_TIME_SEC_Pos +EVM_TIME_SEC_Bits )
-#define EVM_TIME_HOURS_Pos		(EVM_TIME_MINS_Pos+EVM_TIME_MINS_Bits)
+#define EV_TIME_Bits 			32
+#define EV_TIME_FRAC_Bits		15
+#define EV_TIME_MINS_Bits		6
+#define EV_TIME_SEC_Bits		6
+#define EV_TIME_HOURS_Bits		5
 
+#define EV_TIME_FRAC_Pos		0
+#define EV_TIME_SEC_Pos			(EV_TIME_FRAC_Pos+EV_TIME_FRAC_Bits)
+#define EV_TIME_MINS_Pos		(EV_TIME_SEC_Pos +EV_TIME_SEC_Bits )
+#define EV_TIME_HOURS_Pos		(EV_TIME_MINS_Pos+EV_TIME_MINS_Bits)
 
-enum SG_TYPE_ { // в точности соответствует типам данных в протоколе BACnet и EVM
-	SG_TYPE_NULL	        =0x0,
-	SG_TYPE_BOOLEAN         =0x1,
-	SG_TYPE_UNSIGNED        =0x2,
-	SG_TYPE_INTEGER        	=0x3,
-	SG_TYPE_REAL	        =0x4,
-	SG_TYPE_DOUBLE	        =0x5,
-	SG_TYPE_OCTETS    		=0x6,
-	SG_TYPE_STRING    		=0x7,
-	SG_TYPE_BIT_STRING		=0x8,
-	SG_TYPE_ENUMERATED	 	=0x9,
-	SG_TYPE_DATE			=0xA,
-	SG_TYPE_TIME			=0xB,
-	SG_TYPE_OID            	=0xC,// уникальный идентификатор состоит из 
-};
-
-#define EVM_TAG(v) ((v)&0xF0)
-#define EVM_TYPE_CONTEXT 0x08
-#define EVM_SIZE_Msk 	0x07
+#define EV_TAG(v) ((v)&0xF0)
+#define EV_TYPE_CONTEXT 0x08
+#define EV_SIZE_Msk 	0x07
 
 static inline uint8_t* evm_decode_tag(uint8_t * data, unsigned *tag, int *len){
-	*tag = EVM_TAG(data[0]);
+	*tag = EV_TAG(data[0]);
 	uint32_t l = *data++ & 0xF;
 	if (l>5){
 		*len = -1;
@@ -291,17 +270,6 @@ static inline uint8_t* evm_decode_tag(uint8_t * data, unsigned *tag, int *len){
 #define CAN_DBC_TYPE(obj) (obj##_Type)
 #define CAN_DBC_NAME(obj) (obj##_Name)
 
-typedef uint32_t canid_t;
-struct can_frame {
-	canid_t can_id;  /* 32 bit CAN_ID + EFF/RTR/ERR flags */
-	uint8_t can_dlc; /* frame payload length in byte (0 .. 8) */
-	uint8_t    __pad;   /* padding */
-	uint8_t    __res0;  /* reserved / padding */
-	uint8_t    __res1;  /* reserved / padding */
-	uint8_t data[8] __attribute__((aligned(8)));
-};
-
-typedef struct can_frame can_frame_t;
 typedef struct _can_dbc can_dbc_t;
 typedef struct _can_dbc_object can_dbc_object_t;
 typedef struct _can_dbc_signal can_dbc_signal_t;
@@ -319,6 +287,7 @@ struct _can_dbc_object {
 	uint8_t data_len;
 //
 	GData * attrs;//!< атрибуты
+	GData * enums;//!< перечисления
 	GSList* sg_list;
 	char* comment; //!< комментарий CM_ BO_ 
 };
@@ -332,7 +301,7 @@ struct _can_dbc {
 	uint16_t bo_size;	//!< размер таблицы сообщений
 	// BO_:
 	GTree* objects;
-	GTree* signals;
+	//GTree* signals;
 //	can_dbc_object_t* objects;//!< таблица объектов
 	// SG_:
 //	can_dbc_signal_t* signals;//!< таблица сигналов
@@ -347,21 +316,21 @@ struct _Names {
 	uint32_t key; 
 	const char* name;
 };
-// Имена типов используемые для синтеза
+// Имена типов используемые для синтеза структур данных
 const char* names_type[] = {
-	[SG_TYPE_NULL]	        ="unsigned",
-	[SG_TYPE_BOOLEAN]     	="unsigned",
-	[SG_TYPE_UNSIGNED]      ="unsigned",
-	[SG_TYPE_INTEGER]       ="signed",
-	[SG_TYPE_REAL]	        ="float",
-	[SG_TYPE_DOUBLE]	    ="double",
-	[SG_TYPE_OCTETS]    	="Octets_t",
-	[SG_TYPE_STRING]    	="String_t",// строка UTF-8 может быть ограниченной длины
-	[SG_TYPE_BIT_STRING]	="BitString_t",
-	[SG_TYPE_ENUMERATED]	="Enumerated_t",
-	[SG_TYPE_DATE]			="Date_t",
-	[SG_TYPE_TIME]			="Time_t",
-	[SG_TYPE_OID]           ="OID_t",// уникальный идентификатор
+	[_TYPE_NULL]	    ="unsigned",
+	[_TYPE_BOOLEAN]     ="unsigned",
+	[_TYPE_UNSIGNED]    ="unsigned",
+	[_TYPE_INTEGER]     ="signed",
+	[_TYPE_REAL]	    ="float",
+	[_TYPE_DOUBLE]	    ="double",
+	[_TYPE_OCTETS]    	="Octets_t",
+	[_TYPE_STRING]    	="String_t",// текстовая строка UTF-8
+	[_TYPE_BIT_STRING]	="BitString_t",
+	[_TYPE_ENUMERATED]	="Enumerated",
+	[_TYPE_DATE]		="Date_t",
+	[_TYPE_TIME]		="Time_t",
+	[_TYPE_OID]         ="OID_t",// уникальный идентификатор
 };
 typedef uint32_t OID_t;
 typedef unsigned Enumerated_t;
@@ -384,12 +353,19 @@ struct _String {
 	uint16_t len;
 };
 
+typedef struct _Enum Enum_t;
+struct _Enum {
+	GQuark  key;
+	int32_t val;
+};
+
 //2. если к пакету can_frame применить разбор can_dbc_decode() или can_dbc_debug()
 struct _can_dbc_signal{
 	unsigned pos:6;	// в битах от начала
 	unsigned len:6;	// длина в битах 0-64
 	unsigned type:4; // data type UNSIGNED, SIGNED, FLOAT
 
+	  signed mux_idx:10;
 	unsigned mux:1; // поле является мультиплексором
 	unsigned byte_order:1; // поле 
 //	unsigned  SPN:16;		/*!< идентификатор описания */
@@ -405,12 +381,12 @@ struct _can_dbc_signal{
 	char* comment;
 };
 static
-uint64_t can_signal_value(can_frame_t *frame, can_dbc_signal_t* sg)
+uint64_t can_signal_value(struct can_frame *frame, can_dbc_signal_t* sg)
 {
 	uint64_t val = *(uint64_t*)frame->data;
 	if (sg->byte_order){
 	}
-	if (sg->type == SG_TYPE_INTEGER) {
+	if (sg->type == _TYPE_INTEGER) {
 		val = (val>>sg->pos) & (~0ULL)>>(63-sg->len);
 	} else
 	return val;
@@ -454,13 +430,17 @@ static gint oid_cmp (  gconstpointer a,  gconstpointer b){
 static gint cmp_pos_cb (  gconstpointer a,  gconstpointer b){
 	const can_dbc_signal_t* as = a;
 	const can_dbc_signal_t* bs = b;
-	return as->pos - bs->pos;
+	return (uint32_t)as->pos - (uint32_t)bs->pos + (as->mux_idx - bs->mux_idx)*64;
+}
+static gint cmp_enum_cb (  gconstpointer a,  gconstpointer b){
+	const Enum_t* as = a;
+	const Enum_t* bs = b;
+	return (long)as->val - (long)bs->val;
 }
 can_dbc_t* can_dbc_init(can_dbc_t* dbc)
 {
 	if (dbc==NULL) dbc = g_new0(can_dbc_t,1);
 	dbc->objects = g_tree_new (oid_cmp);
-//	dbc->signals = g_tree_new (oid_cmp);
 	return dbc;
 }
 void can_dbc_free(can_dbc_t* dbc){
@@ -468,7 +448,7 @@ void can_dbc_free(can_dbc_t* dbc){
 	g_free(dbc);
 }
 
-int can_dbc_debug(can_frame_t *frame, can_dbc_t* dbc,  GError* err)
+int can_dbc_debug(struct can_frame *frame, can_dbc_t* dbc,  GError* err)
 {
 	canid_t can_id = frame->can_id;
 	uint32_t idx = 0; //
@@ -511,21 +491,21 @@ int can_dbc_debug(can_frame_t *frame, can_dbc_t* dbc,  GError* err)
 		} else {
 //			printf(" %s" 
 			switch (sg->type){
-			case SG_TYPE_NULL: break;
-			case SG_TYPE_UNSIGNED:
+			case _TYPE_NULL: break;
+			case _TYPE_UNSIGNED:
 				printf(" %u",  (unsigned)(value*sg->factor+sg->offset));
 				break;
-			case SG_TYPE_INTEGER:
+			case _TYPE_INTEGER:
 				printf(" %d",  (signed)(value*sg->factor+sg->offset));
 				break;
-			case SG_TYPE_ENUMERATED: {
+			case _TYPE_ENUMERATED: {
 				const char* val = get_name((uint32_t)value, sg->enumerated.vals, sg->enumerated.size);
 				printf(" %s(%d)", val, value);
 			} break;
-			case SG_TYPE_REAL:
+			case _TYPE_REAL:
 				printf(" %g",  value*sg->factor+sg->offset);
 				break;
-			case SG_TYPE_STRING: {
+			case _TYPE_STRING: {
 			} break;
 			}
 			if (sg->units!=0) printf (" %s", g_quark_to_string(sg->units));
@@ -550,8 +530,8 @@ static gboolean _object_define_print_cb(  gpointer key,  gpointer value,  gpoint
 		g_string_append_printf(str, "#define %s_Bits  \t%d\n", name, sg->len);
 		g_string_append_printf(str, "#define %s_Factor\t%g\n", name, sg->factor);
 		g_string_append_printf(str, "#define %s_Offset\t%g\n", name, sg->offset);
-		if (sg->units!=0) {
-			const char* units = g_quark_to_string(sg->units);
+		if (1){//sg->units!=0
+			const char* units = (sg->units!=0)?g_quark_to_string(sg->units):"";
 			g_string_append_printf(str, "#define %s_Units\t\"%s\"\n", name, units);
 		}
 		g_string_append_c(str, '\n');
@@ -578,17 +558,44 @@ static gboolean _object_struct_print_cb(  gpointer key,  gpointer value,  gpoint
 		const char *type = names_type[sg->type];
 		const char *name = g_quark_to_string(sg->name_id);
 		if (offset<sg->pos) {
-			g_string_append_printf((GString*) user_data, "%12s __r%d:%d;\t// %d..%d:\n",
-				"unsigned",offset,sg->pos - offset, offset, sg->pos-1);
+			g_string_append_printf((GString*) user_data, "%12s %-32s:%d;\t// %2d..%2d:\n",
+				"unsigned","",sg->pos - offset, offset, sg->pos-1);
+//			g_string_append_printf((GString*) user_data, "%12s __r%d:%d;\t// %d..%d:\n",
+//				"unsigned",offset,sg->pos - offset, offset, sg->pos-1);
 			offset = sg->pos;
 			
 		}
-		g_string_append_printf((GString*) user_data, "%12s %-22s:%d;\t// %d..%d:\n", type, name, 
+		g_string_append_printf((GString*) user_data, "%12s %-32s:%d;\t// %2d..%2d:", type, name, 
 			sg->len, sg->pos, sg->pos+sg->len-1);
+		if (sg->mux_idx>=0)
+			g_string_append_printf((GString*) user_data, "m%d", sg->mux_idx);
+		g_string_append_c((GString*) user_data, '\n');
 		offset += sg->len;
 		sg_list = sg_list->next;
 	}
 	g_string_append((GString*) user_data, "};\n\n");
+	return FALSE;
+}
+static void _object_key_value_print_cb( GQuark key_id, gpointer data, gpointer user_data)
+{
+	GSList* list = data;
+	GString* str = user_data;
+	g_string_append_printf(str, "Names_t _%s[] = {\n", g_quark_to_string(key_id));
+	while (list){
+		Enum_t* entry = list->data;
+		g_string_append_printf(str, "  {%2d, \"%s\"}\n", entry->val, 
+			g_quark_to_string(entry->key));
+		list = list->next;
+	}
+	g_string_append (str, "};\n");
+}
+/*! \brief генерация типов заданных перечислением блоков */
+static gboolean _object_enums_print_cb(  gpointer key,  gpointer value,  gpointer user_data  )
+{
+	can_dbc_object_t* obj = value;
+	GString* str = user_data;
+	g_string_append_printf(str, "/* obj = %u %s */\n", GPOINTER_TO_UINT(key), g_quark_to_string(obj->name_id));
+	g_datalist_foreach(&obj->enums, _object_key_value_print_cb, str);
 	return FALSE;
 }
 /*! \brief генерация перечисления блоков */
@@ -597,7 +604,7 @@ static gboolean _object_enumerate_print_cb(  gpointer key,  gpointer value,  gpo
 	can_dbc_object_t* obj = value;
 	GString* str = user_data;
 	g_string_append_printf(str, "\tBO_%-20s\t=0x%X,", 
-			g_quark_to_string(obj->name_id), GPOINTER_TO_UINT(key) & 0x1FFFF);
+			g_quark_to_string(obj->name_id), GPOINTER_TO_UINT(key)/* & 0x1FFFF */);
 	if (obj->comment) 
 		g_string_append_printf(str, "\t/*!< %s */", obj->comment);
 	g_string_append_c(str,'\n');
@@ -624,6 +631,9 @@ GString* can_dbc_gen_header(can_dbc_t *dbc, const char* filename)
 	str = g_string_append (str, "\nenum BO_ {\n");
 	g_tree_foreach (dbc->objects, _object_enumerate_print_cb, str);
 	str = g_string_append (str, "};\n");
+
+	str = g_string_append (str, "/* Enumerated types */\n");
+	g_tree_foreach (dbc->objects, _object_enums_print_cb, str);
 
 	str = g_string_append (str, "/* Defines */\n");
 	g_tree_foreach (dbc->objects, _object_define_print_cb, str);
@@ -667,23 +677,48 @@ struct _MainOptions {
     gchar *  input_file;
     gchar * output_file;
     gchar * config_file;
-    gboolean verbose  ;
+    gboolean rbit;
+    gboolean verbose;
 };
 static MainOptions options = {
     .input_file = NULL, // подписка по опросу устройств
     .output_file = "test.h",
+    .rbit = FALSE,
     .verbose = FALSE,
 };
 static GOptionEntry entries[] =
 {
-
-  { "input",    'i', 0, G_OPTION_ARG_FILENAME,  &options.input_file,    "input  file name",  "*.xml" },
-  { "config",   'c', 0, G_OPTION_ARG_FILENAME,  &options.config_file,   "config file name", "*.conf" },
-  { "output",   'o', 0, G_OPTION_ARG_FILENAME,  &options.output_file,   "output file name", "*.xml" },
-
+  { "input",    'i', 0, G_OPTION_ARG_FILENAME,  &options.input_file,    "input  file name",  "*.dbc" },
+  { "config",   'c', 0, G_OPTION_ARG_FILENAME,  &options.config_file,   "DBC file name", "*.dbc" },
+  { "output",   'o', 0, G_OPTION_ARG_FILENAME,  &options.output_file,   "output file name", "*.json|*.pcap|*.sql" },
+  { "rbit",  	'r', 0, G_OPTION_ARG_NONE,      &options.rbit,       	"Reverse bit order",       NULL },
   { "verbose",  'v', 0, G_OPTION_ARG_NONE,      &options.verbose,       "Be verbose",       NULL },
   { NULL }
 };
+/*! \brief разбор строки */
+static char* _char_string (char* s, char** comment, int * len) {
+	if (s[0]=='"' && (s[1]!='"'&& s[1]!='\0')){
+		s++;
+		char* str = s++;
+		while (s[0]!='"' && s[0]!='\0') s++;
+		*comment = str;
+		*len = s - str;
+		s++;
+		while (isspace(s[0])) s++;
+	}
+	return s;
+}
+/*! \brief разбор имени */
+static char* _c_identifier(char* s, char** name, int * len) {
+	if (isalpha(s[0])) {
+		char* str = s++;
+		while (isalnum(s[0]) || s[0]=='_') s++;
+		*name= str;
+		*len = s - str;
+		while (isspace(s[0])) s++;
+	}
+	return s;
+}
 
 int main (int argc, char*argv[])
 {
@@ -705,60 +740,52 @@ int main (int argc, char*argv[])
 	FILE* fp = fopen(argv[1], "r");
 	if (fp==NULL) return 1; 
 	if (verbose) printf("File %s\n", argv[1]);
-	char buf[1024];
+	char buf[4096];
 	can_dbc_t * dbc =  can_dbc_init(NULL);
 	can_dbc_object_t* object = NULL;
-	while (fgets(buf, 1024, fp)!=NULL){
+	while (fgets(buf, 4096, fp)!=NULL){// разбор формата по строчкам
 		char *s = buf;
 		bool mux=false;
 		while (s[0]==' ') s++;
-		if (strncmp(s, "BO_ ", 4)==0){// bus object
+		if (strncmp(s, "BO_ ", 4)==0){// типы сообщений
 			s+=4;
-			uint64_t idx = strtol(s, &s, 10);
+			char* name = NULL;
+			int len = 0, size=0;
+			uint32_t idx = strtoul(s, &s, 10);
 			while (isspace(s[0])) s++;
-			if (isalpha(s[0])) {
-				char* name = s++;
-				while (isalnum(s[0]) || s[0]=='_') s++;
-				int len = s - name;
-				int size=0;
+			s = _c_identifier(s, &name, &len);
+			if (s[0]==':'){
+				s++;
 				while (isspace(s[0])) s++;
-				if (s[0]=='M') {
-					mux = true;
-					s++;
-					while (isspace(s[0])) s++;
-				}
-				if (s[0]==':'){
-					s++;
-					while (isspace(s[0])) s++;
-				}
-				if (isdigit(s[0]))
-					size = strtol(s, &s, 10);
-				while (isspace(s[0])) s++;
-				char* unit = NULL;
-				if (isalpha(s[0])){
-					unit = s++;
-					while (isalnum(s[0]) || s[0]=='_') s++;
-				}
-				
-				if (verbose) printf ("BO_ %d %-.*s : %d %-.*s\n", idx, len, name, size, s-unit, unit);
-				object = g_slice_new0(can_dbc_object_t);
-				object->name_id = _id(name, len);
-				object->transmitter = _id(unit, s-unit);
-				object->data_len = size;
-				g_tree_insert(dbc->objects, GUINT_TO_POINTER(idx), object);
 			}
+			if (isdigit(s[0]))
+				size = strtol(s, &s, 10);
+			while (isspace(s[0])) s++;
+			char* unit = NULL;
+			if (isalpha(s[0])){
+				unit = s++;
+				while (isalnum(s[0]) || s[0]=='_') s++;
+			}
+			
+			if (verbose) printf ("BO_ %u %-.*s : %d %-.*s\n", idx, len, name, size, s-unit, unit);
+			object = g_slice_new0(can_dbc_object_t);
+			object->name_id = _id(name, len);
+			object->transmitter = _id(unit, s-unit);
+			object->data_len = size;
+			g_tree_insert(dbc->objects, GUINT_TO_POINTER(idx), object);
 		} else
-		if (strncmp(s, "SG_ ", 4)==0){// signals
+		if (strncmp(s, "SG_ ", 4)==0){// сигналы
 			s+=4;
 			can_dbc_signal_t* sg = g_slice_new0(can_dbc_signal_t);
 			int len = 0, pos=0, bits=0, ulen=0;
+			int mux_idx = -1;
 			bool order_le=false, sign=false;
 			char* name = NULL;
 			char* units= NULL;
-			if (isalpha(s[0])) {
-				name = s++;
-				while (isalnum(s[0]) || s[0]=='_') s++;
-				len = s - name;
+			s = _c_identifier(s, &name, &len);
+			if (s[0]=='m'){// mux'ed value
+				s++;
+				mux_idx  = strtol(s, &s, 10);
 				while (isspace(s[0])) s++;
 			}
 			if (s[0]=='M') {
@@ -797,52 +824,54 @@ int main (int argc, char*argv[])
 				if (s[0]==']') s++;
 				while (isspace(s[0])) s++;
 			}
-			if (s[0]=='"' && (s[1]!='"'&& s[1]!='\0')){// единицы измерения
-				s++;
-				units = s++;
-				while (s[0]!='"' && s[0]!='\0') s++;
-				ulen = s - units;
-				if (s[0]=='"') s++;
-				while (isspace(s[0])) s++;
+			s = _char_string(s, &units, &ulen); // единицы измерения
+			if (verbose) {
+				printf (" SG_ %-.*s ", len, name);
+				if (mux_idx>=0) {
+					printf ("m%d%s", mux_idx, mux?"M ":" ");
+				} else 
+				if (mux) printf ("M ");
+				printf (": %d|%d@%c%c \"%-.*s\"\n", pos, bits, 
+						(order_le?'1':'0'), (sign?'-':'+'),
+						ulen, units);
 			}
-
-			if (verbose) 
-				printf (" SG_ %-.*s : %d|%d@%c%c\n", len, name, pos, bits, 
-						(order_le?'1':'0'), (sign?'-':'+'));
-			if (!order_le) pos -= bits-1; 
+			if (!order_le && options.rbit) pos -= bits-1; 
 			
-			
+			sg->byte_order = order_le;
 			sg->pos = pos, sg->len = bits;
+			sg->mux_idx = mux_idx;
 			sg->name_id = _id(name, len);
 			if (units!=NULL) 
 				sg->units   = _id(units, ulen);
-			if (sign) sg->type = SG_TYPE_INTEGER;
-			else sg->type = SG_TYPE_UNSIGNED;
+			if (sign) 
+				sg->type = _TYPE_INTEGER;
+			else 	  
+				sg->type = _TYPE_UNSIGNED;
 			if (object!=NULL) 
 				object->sg_list = g_slist_insert_sorted(object->sg_list, sg, cmp_pos_cb);
+			else {
+				printf("Error SG\n");
+				_Exit(1);
+			}
 		} else
-		if (strncmp(s, "CM_ ", 4)==0){// comment
+		if (strncmp(s, "CM_ ", 4)==0){// коментарии
 			s+=4;
 			if (strncmp(s, "BU_ ", 4)==0){
 				s+=4;
 				char* name = NULL, *comment=NULL;
-				int len = 0;
-				if (isalpha(s[0])) {
-					name = s++;
-					while (isalnum(s[0]) || s[0]=='_') s++;
-					len = s - name;
-					while (isspace(s[0])) s++;
-				}
+				int len = 0, clen = 0;
+				s = _c_identifier(s, &name, &len);
+				s = _char_string(s, &comment, &clen);
 				if (s[0]=='"' && (s[1]!='"'&& s[1]!='\0')){
 					s++;
 					comment = s++;
 					while (s[0]!='"' && s[0]!='\0') s++;
 				}
-				if (verbose) printf ("CM_ BU_ %-.*s \"%-.*s\"\n", len, name, s-comment, comment);
+				if (verbose) printf ("CM_ BU_ %-.*s \"%-.*s\"\n", len, name, clen, comment);
 			} else
 			if (strncmp(s, "BO_ ", 4)==0){
 				s+=4;
-				char* name = NULL, *comment=NULL;
+				char* name = NULL;
 				int len = 0;
 				if (isalpha(s[0])) {
 					name = s++;
@@ -850,33 +879,29 @@ int main (int argc, char*argv[])
 					len = s - name;
 					while (isspace(s[0])) s++;
 				}
-				if (s[0]=='"' && (s[1]!='"'&& s[1]!='\0')){
-					s++;
-					comment = s++;
-					while (s[0]!='"' && s[0]!='\0') s++;
-				}
-				if (verbose) printf ("CM_ BO_ %-.*s \"%-.*s\"\n", len, name, s-comment, comment);
+				char *comment=NULL;
+				int clen = 0;
+				s = _char_string(s, &comment, &clen);
+				if (verbose) printf ("CM_ BO_ %-.*s \"%-.*s\"\n", len, name, clen, comment);
 			} else
-				printf ("CM_ \n");
+			if (s[0]=='"') {
+				char* comment=NULL;
+				int clen = 0;
+				s = _char_string(s, &comment, &clen);
+				if (verbose) printf ("CM_ \"%-.*s\"\n", clen, comment);
+			}
 		} else
-		if (strncmp(s, "BA_ ", 4)==0){// comment
+		if (strncmp(s, "BA_ ", 4)==0){// атрибуты
 			s+=4;
 			char* attr=NULL;
 			int len=0;
-			if (s[0]=='"' && (s[1]!='"'&& s[1]!='\0')){
-				s++;
-				attr = s++;
-				while (s[0]!='"' && s[0]!='\0') s++;
-				len = s - attr;
-				s++;
-				while (isspace(s[0])) s++;
-			}
+			s = _char_string(s, &attr, &len);
 			if (strncmp(s, "BO_ ", 4)==0){
 				s+=4;
-				int idx = strtol(s, &s, 10);
+				uint32_t idx = strtoul(s, &s, 10);// переделать на свою функцию
 				while (isspace(s[0])) s++;
 				int value = strtol(s, &s, 10);
-				if (verbose) printf ("BA_ \"%-.*s\" BO_ %d %d;\n", len, attr, idx, value);
+				if (verbose) printf ("BA_ \"%-.*s\" BO_ %u %d;\n", len, attr, idx, value);
 				object = g_tree_lookup(dbc->objects, GUINT_TO_POINTER(idx));
 				if (object){
 					GQuark attr_id = _id(attr, len);
@@ -884,11 +909,46 @@ int main (int argc, char*argv[])
 				}
 			}
 		} else
-		if (strncmp(s, "VAL_", 4)==0){// comment
-			s+=4;
-			//printf ("VAL_ \n");
+		if (strncmp(s, "VAL_ ",5)==0){// перечисления
+			GSList* list = NULL;
+			s+=5;
+			uint32_t idx=0;
+			char* name=NULL;
+			int len=0;
+			if (isdigit(s[0])){
+				idx = strtoul(s, &s, 10);
+				while(isspace(s[0]))s++;
+			}
+			s = _c_identifier(s, &name, &len); //
+			while (isspace(s[0]))s++;
+			while (isdigit(s[0])) {
+				long val = strtol(s, &s, 10);
+				char* tag=NULL;
+				int tlen=0;
+				while (isspace(s[0]))s++;
+				s = _char_string(s, &tag, &tlen);
+				if (tag!=NULL) {
+					Enum_t* entry =  g_slice_new(Enum_t);
+					entry->key = _id(tag, tlen);
+					entry->val = val;
+					list = g_slist_insert_sorted(list, entry, cmp_enum_cb);
+				}
+			}
+			object = g_tree_lookup(dbc->objects, GUINT_TO_POINTER(idx));
+			if (object) {
+				g_datalist_id_set_data(&object->enums, _id(name, len), list);
+			}
+			if (verbose) {
+				printf ("VAL_ %u %-.*s", idx, len, name);
+				while (list){
+					Enum_t* entry = list->data;
+					printf (" %d \"%s\"", entry->val, g_quark_to_string(entry->key));
+					list = list->next;
+				}
+				printf("\n");
+			}
 		} else
-		if (strncmp(s, "BU_", 3)==0){// bus units
+		if (strncmp(s, "BU_",  3)==0){// функциональные блоки
 			s+=3;
 			while (isspace(s[0])) s++;
 			if (s[0]==':') {
