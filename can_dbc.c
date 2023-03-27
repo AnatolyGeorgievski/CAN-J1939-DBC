@@ -244,7 +244,7 @@ VAL_ message_id signal_name
 #define EV_TYPE_CONTEXT 0x08
 #define EV_SIZE_Msk 	0x07
 
-static inline uint8_t* evm_decode_tag(uint8_t * data, unsigned *tag, int *len){
+static inline uint8_t* ev_decode_tag(uint8_t * data, unsigned *tag, int *len){
 	*tag = EV_TAG(data[0]);
 	uint32_t l = *data++ & 0xF;
 	if (l>5){
@@ -282,13 +282,14 @@ struct _can_dbc_object {
 	GQuark name_id;
 	GQuark transmitter;
 	
-	can_dbc_signal_t* signals;// список полей
-	uint16_t sg_size;// число полей
+//	can_dbc_signal_t* signals;// список полей
+//	uint16_t sg_size;// число полей
 	uint8_t data_len;
 //
 	GData * attrs;//!< атрибуты
 	GData * enums;//!< перечисления
-	GSList* sg_list;
+//	GSList* muxes;//!< Мультиплицируемые поля
+	GSList* sg_list;//!< Список сигналов, сортированный
 	char* comment; //!< комментарий CM_ BO_ 
 };
 
@@ -296,6 +297,7 @@ struct _can_dbc_object {
 struct _can_dbc {
 	char* version;	//!< версия файла
 	// BU_:
+	GData* blocks;
 	char** block_units;	//!< таблица имен блоков
 	uint8_t  bu_size;	//!< размер таблицы имен
 	uint16_t bo_size;	//!< размер таблицы сообщений
@@ -352,6 +354,11 @@ struct _String {
 	uint8_t *data;
 	uint16_t len;
 };
+typedef struct _Mux Multiplexor_t;
+struct _Mux {
+	 int16_t mux;	//!< индекс мультиплексора
+	uint16_t offset;//!< Смещение по структуре данных с выравниванием на 8/16/32 бита
+};
 
 typedef struct _Enum Enum_t;
 struct _Enum {
@@ -374,10 +381,10 @@ struct _can_dbc_signal{
 	GQuark units;// идентификатор единицы измерения - кварк или enum
 	float factor, offset;
 	unsigned min, max;
-	struct {
+/*	struct {
 		const Names_t* vals;
 		int size;
-	} enumerated;
+	} enumerated;*/
 	char* comment;
 };
 static
@@ -441,13 +448,14 @@ can_dbc_t* can_dbc_init(can_dbc_t* dbc)
 {
 	if (dbc==NULL) dbc = g_new0(can_dbc_t,1);
 	dbc->objects = g_tree_new (oid_cmp);
+	g_datalist_init(&dbc->blocks);
 	return dbc;
 }
 void can_dbc_free(can_dbc_t* dbc){
 	g_tree_destroy(dbc->objects);
 	g_free(dbc);
 }
-
+#if 0
 int can_dbc_debug(struct can_frame *frame, can_dbc_t* dbc,  GError* err)
 {
 	canid_t can_id = frame->can_id;
@@ -515,6 +523,7 @@ int can_dbc_debug(struct can_frame *frame, can_dbc_t* dbc,  GError* err)
 	}
 	return 0;
 }
+#endif//_
 static gboolean _object_define_print_cb(  gpointer key,  gpointer value,  gpointer user_data  )
 {
 	can_dbc_object_t* obj = value;
@@ -524,6 +533,9 @@ static gboolean _object_define_print_cb(  gpointer key,  gpointer value,  gpoint
 	while (sg_list){
 		can_dbc_signal_t *sg = sg_list->data;
 		const char *name = g_quark_to_string(sg->name_id);
+		if (sg->comment!=NULL)
+			g_string_append_printf(str, "/*! %s \n */\n", sg->comment);
+
 //		g_string_append_printf(str, "#define %s_Name  \t\"%s\"\n", name, name);
 		g_string_append_printf(str, "#define %s_Pos   \t%d\n", name, sg->pos);
 //		g_string_append_printf(str, "#define %s_Msk   \t0x%016llXULL\n", name, (~0ULL)>>(64-sg->len)<<sg->pos);
@@ -565,17 +577,33 @@ static gboolean _object_struct_print_cb(  gpointer key,  gpointer value,  gpoint
 			offset = sg->pos;
 			
 		}
-		g_string_append_printf((GString*) user_data, "%12s %-32s:%d;\t// %2d..%2d:", type, name, 
+		g_string_append_printf((GString*) user_data, "%12s %-32s:%d;\t/* %2d..%2d:", type, name, 
 			sg->len, sg->pos, sg->pos+sg->len-1);
 		if (sg->mux_idx>=0)
-			g_string_append_printf((GString*) user_data, "m%d", sg->mux_idx);
-		g_string_append_c((GString*) user_data, '\n');
+			g_string_append_printf((GString*) user_data, "m%d:", sg->mux_idx);
+		if (0 && sg->comment!=NULL)
+			g_string_append_printf((GString*) user_data, "%s", sg->comment);
+		g_string_append((GString*) user_data, "*/\n");
 		offset += sg->len;
 		sg_list = sg_list->next;
 	}
 	g_string_append((GString*) user_data, "};\n\n");
 	return FALSE;
 }
+/*! \brief преобразование мультиплексора в таблицу смещений (синтез кода) */
+static void _object_mux_offset_print_cb( GQuark key_id, gpointer data, gpointer user_data)
+{
+	GSList* list = data;
+	GString* str = user_data;
+	g_string_append_printf(str, "Multiplexor_t _%s[] = {", g_quark_to_string(key_id));
+	while (list){
+		Multiplexor_t* entry = list->data;
+		g_string_append_printf(str, " {%d,%d},", entry->mux, entry->offset);
+		list = list->next;
+	}
+	g_string_append (str, "};\n");
+}
+/*! \brief преобразование значений констант в ассоциативный массив (синтез кода) */
 static void _object_key_value_print_cb( GQuark key_id, gpointer data, gpointer user_data)
 {
 	GSList* list = data;
@@ -583,7 +611,7 @@ static void _object_key_value_print_cb( GQuark key_id, gpointer data, gpointer u
 	g_string_append_printf(str, "Names_t _%s[] = {\n", g_quark_to_string(key_id));
 	while (list){
 		Enum_t* entry = list->data;
-		g_string_append_printf(str, "  {%2d, \"%s\"}\n", entry->val, 
+		g_string_append_printf(str, "  {%2d, \"%s\"},\n", entry->val, 
 			g_quark_to_string(entry->key));
 		list = list->next;
 	}
@@ -635,7 +663,7 @@ GString* can_dbc_gen_header(can_dbc_t *dbc, const char* filename)
 	str = g_string_append (str, "/* Enumerated types */\n");
 	g_tree_foreach (dbc->objects, _object_enums_print_cb, str);
 
-	str = g_string_append (str, "/* Defines */\n");
+	str = g_string_append (str, "/* Signals */\n");
 	g_tree_foreach (dbc->objects, _object_define_print_cb, str);
 
 	str = g_string_append (str, "/* Messages */\n");
@@ -719,6 +747,23 @@ static char* _c_identifier(char* s, char** name, int * len) {
 	}
 	return s;
 }
+/*! \brief разбор идентификатора объекта CAN */
+static char* _cob_id(char* s, uint32_t* cob_id) {
+	if (isdigit(s[0])){
+		*cob_id = strtoul(s, &s, 10);
+		while(isspace(s[0]))s++;
+	}
+	return s;
+}
+/*! \brief поиск сигнала по идентификатору */
+static can_dbc_signal_t* _signal_lookup(GSList* sg_list, GQuark id){
+	while (sg_list){
+		can_dbc_signal_t* sig = sg_list->data;
+		if (sig->name_id == id) return sig;
+		sg_list = sg_list->next;
+	}
+	return NULL;
+}
 
 int main (int argc, char*argv[])
 {
@@ -751,8 +796,8 @@ int main (int argc, char*argv[])
 			s+=4;
 			char* name = NULL;
 			int len = 0, size=0;
-			uint32_t idx = strtoul(s, &s, 10);
-			while (isspace(s[0])) s++;
+			uint32_t cob_id = ~0;
+			s = _cob_id(s, &cob_id);
 			s = _c_identifier(s, &name, &len);
 			if (s[0]==':'){
 				s++;
@@ -762,17 +807,15 @@ int main (int argc, char*argv[])
 				size = strtol(s, &s, 10);
 			while (isspace(s[0])) s++;
 			char* unit = NULL;
-			if (isalpha(s[0])){
-				unit = s++;
-				while (isalnum(s[0]) || s[0]=='_') s++;
-			}
+			int ulen = 0;
+			s = _c_identifier(s, &unit, &ulen);
 			
-			if (verbose) printf ("BO_ %u %-.*s : %d %-.*s\n", idx, len, name, size, s-unit, unit);
+			if (verbose) printf ("BO_ %u %-.*s : %d %-.*s\n", cob_id, len, name, size, ulen, unit);
 			object = g_slice_new0(can_dbc_object_t);
 			object->name_id = _id(name, len);
-			object->transmitter = _id(unit, s-unit);
+			object->transmitter = _id(unit, ulen);
 			object->data_len = size;
-			g_tree_insert(dbc->objects, GUINT_TO_POINTER(idx), object);
+			g_tree_insert(dbc->objects, GUINT_TO_POINTER(cob_id), object);
 		} else
 		if (strncmp(s, "SG_ ", 4)==0){// сигналы
 			s+=4;
@@ -862,27 +905,41 @@ int main (int argc, char*argv[])
 				int len = 0, clen = 0;
 				s = _c_identifier(s, &name, &len);
 				s = _char_string(s, &comment, &clen);
-				if (s[0]=='"' && (s[1]!='"'&& s[1]!='\0')){
-					s++;
-					comment = s++;
-					while (s[0]!='"' && s[0]!='\0') s++;
-				}
 				if (verbose) printf ("CM_ BU_ %-.*s \"%-.*s\"\n", len, name, clen, comment);
+				if (name!=NULL && comment!=NULL){
+					//dbc->blocks;
+				}
+			} else
+			if (strncmp(s, "SG_ ", 4)==0){
+				s+=4;
+				while(isspace(s[0]))s++;
+				char* name = NULL, *comment=NULL;
+				int len = 0,clen = 0;
+				uint32_t cob_id=~0;
+				s = _cob_id(s, &cob_id);
+				s = _c_identifier(s, &name, &len);
+				s = _char_string(s, &comment, &clen);
+				if (verbose) printf ("CM_ SG_ %u %-.*s \"%-.*s\"\n", cob_id, len, name, clen, comment);
+				object = g_tree_lookup(dbc->objects, GUINT_TO_POINTER(cob_id));
+				if (object!=NULL && comment!=NULL && clen!=0) {
+					can_dbc_signal_t* sig = _signal_lookup(object->sg_list, _id(name, len));
+					if (sig) sig->comment = g_strndup(comment,clen);
+				}
+				
 			} else
 			if (strncmp(s, "BO_ ", 4)==0){
 				s+=4;
-				char* name = NULL;
-				int len = 0;
-				if (isalpha(s[0])) {
-					name = s++;
-					while (isalnum(s[0]) || s[0]=='_') s++;
-					len = s - name;
-					while (isspace(s[0])) s++;
-				}
-				char *comment=NULL;
-				int clen = 0;
+				while(isspace(s[0]))s++;
+				char* name = NULL, *comment=NULL;
+				int len = 0,clen = 0;
+				uint32_t cob_id=~0;
+//				s = _c_identifier(s, &name, &len);
+				s = _cob_id(s, &cob_id);
 				s = _char_string(s, &comment, &clen);
-				if (verbose) printf ("CM_ BO_ %-.*s \"%-.*s\"\n", len, name, clen, comment);
+				if (verbose) printf ("CM_ BO_ %u \"%-.*s\"\n", cob_id, clen, comment);
+				object = g_tree_lookup(dbc->objects, GUINT_TO_POINTER(cob_id));
+				if (object!=NULL && comment!=NULL && clen!=0) 
+					object->comment = g_strndup(comment,clen);
 			} else
 			if (s[0]=='"') {
 				char* comment=NULL;
@@ -912,13 +969,10 @@ int main (int argc, char*argv[])
 		if (strncmp(s, "VAL_ ",5)==0){// перечисления
 			GSList* list = NULL;
 			s+=5;
-			uint32_t idx=0;
+			uint32_t cob_id=0;
 			char* name=NULL;
 			int len=0;
-			if (isdigit(s[0])){
-				idx = strtoul(s, &s, 10);
-				while(isspace(s[0]))s++;
-			}
+			s = _cob_id(s, &cob_id);
 			s = _c_identifier(s, &name, &len); //
 			while (isspace(s[0]))s++;
 			while (isdigit(s[0])) {
@@ -934,12 +988,12 @@ int main (int argc, char*argv[])
 					list = g_slist_insert_sorted(list, entry, cmp_enum_cb);
 				}
 			}
-			object = g_tree_lookup(dbc->objects, GUINT_TO_POINTER(idx));
+			object = g_tree_lookup(dbc->objects, GUINT_TO_POINTER(cob_id));
 			if (object) {
 				g_datalist_id_set_data(&object->enums, _id(name, len), list);
 			}
 			if (verbose) {
-				printf ("VAL_ %u %-.*s", idx, len, name);
+				printf ("VAL_ %u %-.*s", cob_id, len, name);
 				while (list){
 					Enum_t* entry = list->data;
 					printf (" %d \"%s\"", entry->val, g_quark_to_string(entry->key));

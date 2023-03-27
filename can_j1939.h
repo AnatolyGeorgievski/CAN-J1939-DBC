@@ -1,15 +1,11 @@
 #ifndef CAN_J1939_H
 #define CAN_J1939_H
 #include <stdint.h>
-
+#include <sys/can.h>
+// для разбора PCAP файла
 #define CAN_ID_OFFSET       0
 #define CAN_DLC_OFFSET      4
 #define CAN_DATA_OFFSET     5
-#define CAN_EXT_FLAG_OFFSET 13
-#define CAN_RTR_FLAG_OFFSET 14
-
-#define CAN_EFF_MASK 0x1FFFFFFF /* extended frame format (EFF) has a 29 bit identifier */
-#define CAN_SFF_MASK 0x000007FF /* standard frame format (SFF) has a 11 bit identifier */
 
 // \see in include/linux/can.h: SocketCAN
 typedef uint32_t canid_t;
@@ -27,7 +23,8 @@ struct can_filter {
 /* J1939 использует длинные идентификаторы 29 бит
 	PGN (Parameter Group Number) — это номер группы параметров, 
 	определяющий содержимое сообщения CAN согласно SAE J1939/21.
-	
+
+
 	
 Cосуществование сетей CANopen и J1939
 CANopen Extended Frame allowed
@@ -50,6 +47,26 @@ BAM  0xFF00..0xFFFF - широковещательный
 − the Non-CANopen network shall not use the identifier value 0 (CANopen NMT).
 − the Non-CANopen network shall not use the identifiers for SDO and NMT-EC services.
 
+
+PGNs with PDU-Format <  240 (format 1) identify point-to-point messages
+PGNs with PDU-Format >= 240 (format 2) identify broadcast messages.
+
+SAE J1939 transport layer 
+uses two special point-to-point messages identified
+by PGNs of format 1 to transport segmented messages, both with a fixed length of 8
+bytes. These messages are called transport frames in the context of this document.
+
+TP.CM is used for connection management. The first byte of the payload identifies its
+role, which may be one of the following:
+TP.CM_BAM is used to initiate a BAM transfer.
+TP.CM_RTS is transmitted to initiate a CMDT transfer.
+TP.CM_CTS is used for flow control during a CMDT transfer.
+TP.CM_EndOfMsgAck indicates the end of a CMDT transfer.
+TP.Conn_Abort indicates an error and terminates the CMDT transfer.
+TP.DT contains a sequence number in the first byte and 7 bytes of data.
+A single TP.CM or TP.DT frame, identified by a certain CAN Identifier, is used for
+different PGs. The PGN of the transported PG is contained in the payload of the
+TP.CM frames as specified in [16].
 
 MilCAN _r =1
 MilCAN dp - request
