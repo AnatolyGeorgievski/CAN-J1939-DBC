@@ -309,6 +309,7 @@ _TYPE_NULL	        =0x0,
 _TYPE_BOOL	        =0x1,
 _TYPE_UINT	        =0x2,
 _TYPE_SINT	        =0x3,
+_TYPE_SDNV			=0x4,// идентификаторы
 _TYPE_REAL	        =0x5,
 _TYPE_BSTR	        =0x6,// кодирование HEX
 _TYPE_TSTR	        =0x7,// кодирование UTF8
@@ -330,13 +331,15 @@ _TYPE_FLOAT  		=0x15,// _Float32
 _TYPE_DOUBLE		=0x25,// _Float64
 _TYPE_FLT128		=0x35,// _Float64x или _Float128. 
 ```
+<details><summary>Преобразование типов FloatN для платформ ARM aarch64 и Intel</summary>
+
 `long double` приравнивается к _Float64 или _Float64x или _Float128 
 
-Преобразование типов FloatN для платформы ARM aarch64:
+
 ```sh
 # echo -n "" | gcc -dM -E - | grep MANT
 ```
-| определение			|aarch64| x86_64|
+| определение 			|aarch64| x86_64|
 |----------------------:|------:|------:|
 |   __LDBL_MANT_DIG__ 	|113	|64
 |    __DBL_MANT_DIG__	|53		|53
@@ -362,7 +365,7 @@ _TYPE_FLT128		=0x35,// _Float64x или _Float128.
 | __SIZEOF_POINTER__ 	|8		|8
 | __SIZEOF_INT128__ 	|16		|16
 
-
+</details>
 
 - (f) real (вещественные числа со знаком и двоичной экспонентой). fixed (вещественные числа) = с фиксированной точкой. 
 - (s) Bool - это знак без поля данных. Null - без знака и без поля данных. sint - знаковый (открицательный) int. 
