@@ -192,13 +192,13 @@ $$C(s) = P(s)+I(s)+D(s) = K_p\left(1+\frac{1}{T_i \cdot s} + T_d D(s)\right)$$
 $$s= \frac{2}{T_s} \frac{1-z^{-1}}{1+z^{-1}},$$
 где $T_s$ – период дискретизации. 
 
-$$C(z) = g ( \bar{\beta}_1 P(z)+\beta_1 I(z)(\bar{\beta}_2+\beta_2 D(z)) )$$
+$$C(z) = g ( \bar{\beta_1} P(z)+\beta_1 I(z)(\bar{\beta_2}+\beta_2 D(z)) )$$
 передаточные функции компонент представлены в операторной форме:\
 $P(z) = (1-z^{-1})$; $I(z) = (1+z^{-1})/2$; $D(z) = (1-z^{-1})^2 LPF(z)$.
 
 Фильтр $D(z)$ применяется к усредненному значению параметра, $LPF(z)$ - фильтр нижних частот. 
 
-$$C(z) = g \left( \bar{\beta}_1+ \beta_1 \left( \bar{\beta_2} L_1(z) + \beta_2 (1-z^{-1}) L_{\alpha}(z) \right) \right)$
+$$C(z) = g \left( \bar{\beta_1}+ \beta_1 \left( \bar{\beta_2} L_1(z) + \beta_2 (1-z^{-1}) L_{\alpha}(z) \right) \right)$
 
 где $L_1(z)$ и $L_{\alpha}(z)$ - фильтры нижних частот с передаточной функцией: 
 $$L_1(z) = \frac{1}{2} \frac{1+z^{-1}}{1-z^{-1}} ;
