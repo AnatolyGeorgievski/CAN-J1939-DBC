@@ -34,14 +34,15 @@ $d: M\times M\to \mathbb{R} $ из его декартова квадрата в
 1. $\mathbf{x} +\mathbf{y} =\mathbf{y} +\mathbf{x}$ для любых 
 $\mathbf{x} ,\mathbf{y} \in V$ (коммутативность сложения);
 2. $\mathbf{x} +(\mathbf{y} +\mathbf{z})=(\mathbf{x} +\mathbf{y})+\mathbf{z} $ для любых 
-$\mathbf{x} ,\mathbf {y} ,\mathbf {z} \in V$ (ассоциативность сложения);
+$\mathbf{x} ,\mathbf{y} ,\mathb {z} \in V$ (ассоциативность сложения);
 3. существует такой элемент $\mathbf{0} \in V$, что 
-$\mathbf{x} +\mathbf {0} =\mathbf {0} +\mathbf {x} =\mathbf {x} $ для любого 
+$\mathbf{x} +\mathbf{0} =\mathbf{0} +\mathbf{x} =\mathbf{x}$ для любого 
 $\mathbf{x} \in V$ (существование нейтрального элемента относительно сложения);
 4. для любого $\mathbf{x} \in V$ существует такой элемент 
 $-\mathbf {x} \in V$, что 
-$\mathbf {x} +(-\mathbf {x} )=\mathbf {0}$, называемый вектором, противоположным вектору $\mathbf{x}$;
-5. $\alpha (\beta \mathbf{x} )=(\alpha \beta )\mathbf{x} $ (ассоциативность умножения на скаляр);
+$\mathbf{x} +(-\mathbf{x})=\mathbf{0}$, называемый вектором, 
+противоположным вектору $\mathbf{x}$;
+5. $\alpha (\beta \mathbf{x} )=(\alpha \beta )\mathbf{x}$ (ассоциативность умножения на скаляр);
 6. $1\cdot \mathbf{x} =\mathbf{x}$ (унитарность: умножение на нейтральный элемент поля $F$).
 7. $(\alpha +\beta )\mathbf{x} =\alpha \mathbf{x} +\beta \mathbf{x}$ (дистрибутивность умножения вектора на скаляр относительно сложения скаляров);
 8. $\alpha (\mathbf{x} +\mathbf{y} )=\alpha \mathbf{x} +\alpha \mathbf{y} $ (дистрибутивность умножения вектора на скаляр относительно сложения векторов).
